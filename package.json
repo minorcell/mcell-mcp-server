@@ -1,6 +1,6 @@
 {
-  "name": "mcell-mcp-server",
-  "version": "0.1.1",
+  "name": "@mcell/mcell-mcp-server",
+  "version": "0.1.2",
   "description": "A stdio MCP server with image processing and S3 upload tools.",
   "type": "module",
   "main": "dist/index.js",

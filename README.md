@@ -62,7 +62,7 @@ npm start
 发布 npm 后，用户可直接：
 
 ```bash
-npx -y mcell-mcp-server
+npx -y @mcell/mcell-mcp-server
 ```
 
 ## MCP 集成示例
@@ -74,7 +74,7 @@ npx -y mcell-mcp-server
 ```toml
 [mcp_servers.mcell]
 command = "npx"
-args = ["-y", "mcell-mcp-server"]
+args = ["-y", "@mcell/mcell-mcp-server"]
 
 [mcp_servers.mcell.env]
 AWS_REGION = "us-east-1"
@@ -87,7 +87,7 @@ AWS_REGION = "us-east-1"
   "mcpServers": {
     "mcell": {
       "command": "npx",
-      "args": ["-y", "mcell-mcp-server"],
+      "args": ["-y", "@mcell/mcell-mcp-server"],
       "env": {
         "AWS_REGION": "us-east-1"
       }
@@ -101,7 +101,7 @@ AWS_REGION = "us-east-1"
 填写同样的进程启动参数即可：
 
 - `command`: `npx`
-- `args`: `["-y", "mcell-mcp-server"]`
+- `args`: `["-y", "@mcell/mcell-mcp-server"]`
 
 ## S3 凭证
 
@@ -137,4 +137,4 @@ AWS_REGION = "us-east-1"
 
 - `NPM_TOKEN`: npm publish token
 
-发布后用户端基本只需 `npx -y mcell-mcp-server` 即可接入。
+发布后用户端基本只需 `npx -y @mcell/mcell-mcp-server` 即可接入。
