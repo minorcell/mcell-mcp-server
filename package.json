@@ -1,6 +1,6 @@
 {
   "name": "mcell-mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A stdio MCP server with image processing and S3 upload tools.",
   "type": "module",
   "main": "dist/index.js",
@@ -50,5 +50,13 @@
     "dist",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/minorcell/mcell-mcp-server"
+  },
+  "homepage": "https://github.com/minorcell/mcell-mcp-server",
+  "bugs": {
+    "url": "https://github.com/minorcell/mcell-mcp-server/issues"
+  }
 }
