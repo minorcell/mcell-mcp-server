@@ -1,0 +1,54 @@
+{
+  "name": "mcell-mcp-server",
+  "version": "0.1.0",
+  "description": "A stdio MCP server with image processing and S3 upload tools.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mcell-mcp-server": "dist/index.js"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build:ts": "tsc -p tsconfig.json",
+    "build:minify": "node scripts/minify.mjs",
+    "build": "npm run clean && npm run build:ts && npm run build:minify",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "ci": "npm run check && npm run test:coverage && npm run build",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "stdio",
+    "image",
+    "s3"
+  ],
+  "author": "mcell",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.996.0",
+    "@modelcontextprotocol/sdk": "^1.27.0",
+    "mime-types": "^3.0.1",
+    "sharp": "^0.34.5",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/mime-types": "^3.0.1",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "^4.0.7",
+    "terser": "^5.44.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.7"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ]
+}
