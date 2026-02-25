@@ -5,7 +5,7 @@ import { errorResult, successResult } from "./lib/results.js";
 import { uploadToS3 } from "./lib/s3.js";
 
 export const SERVER_NAME = "mcell-mcp-server";
-export const SERVER_VERSION = "0.1.0";
+export const SERVER_VERSION = "0.1.2";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({

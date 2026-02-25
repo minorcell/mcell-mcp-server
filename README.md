@@ -54,7 +54,7 @@ npm start
 
 说明：
 
-- `npm run build` 会先 `tsc`，再对 `dist/**/*.js` 全量做压缩与丑化（`terser --compress --mangle`）。
+- `npm run build` 会使用 `esbuild` 直接产出单一 bundle：`dist/index.js`（已压缩）。
 - `npm run ci` 会执行 `check + coverage + build`，与 CI 保持一致。
 
 ## 用户安装与运行（推荐）

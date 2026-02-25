@@ -9,9 +9,8 @@
   },
   "scripts": {
     "clean": "rm -rf dist",
-    "build:ts": "tsc -p tsconfig.json",
-    "build:minify": "node scripts/minify.mjs",
-    "build": "npm run clean && npm run build:ts && npm run build:minify",
+    "build:bundle": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=esm --packages=external --minify --outfile=dist/index.js",
+    "build": "npm run clean && npm run build:bundle",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "check": "tsc -p tsconfig.json --noEmit",
@@ -41,7 +40,7 @@
     "@types/mime-types": "^3.0.1",
     "@types/node": "^24.10.1",
     "@vitest/coverage-v8": "^4.0.7",
-    "terser": "^5.44.1",
+    "esbuild": "^0.27.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
     "vitest": "^4.0.7"
