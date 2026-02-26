@@ -2,12 +2,48 @@
 
 `mcell-mcp-server` 是一个基于 `stdio` 的 MCP Server，定位为 mcell 常用工具合集。当前内置：
 
-1. 图片处理：压缩（可选 resize）、格式转换
-2. S3 对象存储上传
+1. 内容工具（博客）：最新、列表、读取、搜索
+2. 图片处理：压缩（可选 resize）、格式转换
+3. S3 对象存储上传
+
+## 代码结构
+
+- `src/tools/*.ts`: 每个工具文件包含工具定义（schema/description）和工具实现（handler）。
+- `src/index.ts`: 创建 MCP server、集中注册工具并作为 stdio 入口。
 
 ## 工具列表
 
-### 1) `image_compress`
+### 1) `content_latest`
+
+读取最新博客列表（按时间倒序）。
+
+- `count` (1-20, optional, default: 1): 返回条数
+
+### 2) `content_list`
+
+博客分页列表（按时间倒序）。
+
+- `count` (1-100, optional, default: 20): 每页条数
+- `offset` (0-10000, optional, default: 0): 偏移量
+
+### 3) `content_read`
+
+读取某篇博客正文（仅 blog）。
+
+- `id` (string, optional): 博客 ID
+- `slug` (string, optional): 博客 slug
+- `max_chars` (200-50000, optional, default: 12000): 最大正文字符数
+
+约束：`id` 和 `slug` 至少传一个；如果都传，优先 `id`。
+
+### 4) `content_search`
+
+搜索博客（title / slug / description）。
+
+- `query` (string, required): 搜索词
+- `count` (1-30, optional, default: 10): 最大返回数量
+
+### 5) `image_compress`
 
 压缩图片，可选调整尺寸。
 
@@ -18,7 +54,7 @@
 - `width` / `height` (int, optional): resize 尺寸
 - `fit` (`cover|contain|fill|inside|outside`, optional): resize 策略
 
-### 2) `image_convert`
+### 6) `image_convert`
 
 图片格式转换。
 
@@ -27,7 +63,7 @@
 - `output_path` (string, optional): 输出路径
 - `quality` (1-100, optional, default: 85): 编码质量
 
-### 3) `s3_upload`
+### 7) `s3_upload`
 
 上传本地文件到 S3 或兼容 S3 的对象存储。
 
@@ -44,6 +80,8 @@
 
 ```bash
 npm install
+npm run lint
+npm run format:check
 npm run check
 npm test
 npm run build
@@ -55,7 +93,7 @@ npm start
 说明：
 
 - `npm run build` 会使用 `esbuild` 直接产出单一 bundle：`dist/index.js`（已压缩）。
-- `npm run ci` 会执行 `check + coverage + build`，与 CI 保持一致。
+- `npm run ci` 会执行 `lint + format:check + check + coverage + build`，与 CI 保持一致。
 
 ## 用户安装与运行（推荐）
 
@@ -111,6 +149,19 @@ AWS_REGION = "us-east-1"
 - `AWS_SECRET_ACCESS_KEY`
 - `AWS_SESSION_TOKEN`（可选）
 - `AWS_REGION`（可选）
+
+## 内容数据源配置（博客）
+
+内容工具采用“远端优先 + 本地缓存兜底”，并且只处理 blog 类型条目。
+
+- `MCELL_CONTENT_INDEX_URL`
+  - 默认：`https://stack.mcell.top/mcp/index.json`
+- `MCELL_CONTENT_CACHE_DIR`
+  - 默认：`~/.cache/mcell-mcp/content`
+- `MCELL_CONTENT_CACHE_TTL_SECONDS`
+  - 默认：`1800`
+- `MCELL_CONTENT_REQUEST_TIMEOUT_SECONDS`
+  - 默认：`20`
 
 ## 发布建议
 

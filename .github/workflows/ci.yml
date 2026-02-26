@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["main"]
+    branches: ['main']
   pull_request:
 
 jobs:
@@ -27,14 +27,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Type check
-        run: npm run check
-
-      - name: Run tests with coverage
-        run: npm run test:coverage
-
-      - name: Build (minified)
-        run: npm run build
+      - name: Run quality gates
+        run: npm run ci
 
       - name: Upload coverage artifact
         if: matrix.node == 22

@@ -1,14 +1,14 @@
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
 export function successResult(payload: unknown): CallToolResult {
   return {
     content: [
       {
-        type: "text",
+        type: 'text',
         text: JSON.stringify(payload, null, 2)
       }
     ]
-  };
+  }
 }
 
 export function errorResult(error: unknown): CallToolResult {
@@ -16,9 +16,9 @@ export function errorResult(error: unknown): CallToolResult {
     isError: true,
     content: [
       {
-        type: "text",
+        type: 'text',
         text: error instanceof Error ? error.message : String(error)
       }
     ]
-  };
+  }
 }
