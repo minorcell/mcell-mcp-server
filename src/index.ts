@@ -29,21 +29,27 @@ export function createMcpServer(options: CreateMcpServerOptions = {}): McpServer
   return server
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const server = createMcpServer()
   const transport = new StdioServerTransport()
   await server.connect(transport)
   console.error('[mcell-mcp-server] running on stdio')
 }
 
-function isExecutedAsEntrypoint(): boolean {
+export function isExecutedAsEntrypoint(): boolean {
   if (!process.argv[1]) return false
   return pathToFileURL(process.argv[1]).href === import.meta.url
 }
 
-if (isExecutedAsEntrypoint()) {
-  main().catch((error) => {
-    console.error('[mcell-mcp-server] fatal:', error)
-    process.exit(1)
-  })
+export function handleFatalError(error: unknown): never {
+  console.error('[mcell-mcp-server] fatal:', error)
+  process.exit(1)
 }
+
+export function runEntrypointIfNeeded(runMain: () => Promise<void> = main): void {
+  if (isExecutedAsEntrypoint()) {
+    runMain().catch(handleFatalError)
+  }
+}
+
+runEntrypointIfNeeded()
