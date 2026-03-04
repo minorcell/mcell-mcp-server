@@ -5,6 +5,7 @@
 1. 内容工具（博客）：最新、列表、读取、搜索
 2. 图片处理：压缩（可选 resize）、格式转换
 3. S3 对象存储上传
+4. 任务完成通知：系统通知 + webhook（飞书/企微/自定义）
 
 ## 代码结构
 
@@ -76,6 +77,24 @@
 - `content_type` (string, optional): 显式 Content-Type
 - `metadata` (record<string,string>, optional): 对象元数据
 
+### 8) `notify_task_complete`
+
+在任务结束时发送通知，可同时发系统通知和多个 webhook 目标。
+
+- `task_name` (string, required): 任务名
+- `status` (`success|failed|cancelled`, optional, default: `success`): 任务状态
+- `summary` (string, optional): 任务摘要
+- `duration_sec` (number >= 0, optional): 耗时（秒）
+- `target` (string[], optional, default: `["system"]`): 通知目标，如 `["system", "feishu", "wecom"]`
+- `webhook_payloads` (record<string, unknown>, optional): webhook 的按目标 payload 覆盖
+- `webhook_timeout_ms` (positive int, optional): webhook 超时（毫秒）
+
+返回特性：
+
+- 采用 `Promise.allSettled` 聚合所有目标结果
+- 只要有一个目标失败，工具返回 `isError=true`
+- 即使失败，也会返回完整逐目标结果数组
+
 ## 本地开发
 
 ```bash
@@ -116,6 +135,8 @@ args = ["-y", "@mcell/mcell-mcp-server"]
 
 [mcp_servers.mcell.env]
 AWS_REGION = "us-east-1"
+MCELL_NOTIFY_WEBHOOK_FEISHU = "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+MCELL_NOTIFY_WEBHOOK_WECOM = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"
 ```
 
 ### Claude 系（JSON 片段示例）
@@ -162,6 +183,31 @@ AWS_REGION = "us-east-1"
   - 默认：`1800`
 - `MCELL_CONTENT_REQUEST_TIMEOUT_SECONDS`
   - 默认：`20`
+
+## 通知配置（系统通知 + webhook）
+
+- `MCELL_NOTIFY_WEBHOOK_<ALIAS>`
+  - webhook 地址配置，`<ALIAS>` 不区分大小写
+  - 示例：`MCELL_NOTIFY_WEBHOOK_FEISHU`、`MCELL_NOTIFY_WEBHOOK_WECOM`
+  - 内置别名：`feishu`、`wecom`；`wechat` 会自动映射到 `wecom`
+- `MCELL_NOTIFY_WEBHOOK_TIMEOUT_MS`
+  - 默认：`10000`
+  - webhook 请求超时（毫秒）
+
+调用示例：
+
+```json
+{
+  "name": "notify_task_complete",
+  "arguments": {
+    "task_name": "Long analysis",
+    "status": "success",
+    "summary": "report generated",
+    "duration_sec": 132,
+    "target": ["system", "feishu", "wecom"]
+  }
+}
+```
 
 ## 发布建议
 

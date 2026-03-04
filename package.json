@@ -37,6 +37,7 @@
     "@aws-sdk/client-s3": "^3.996.0",
     "@modelcontextprotocol/sdk": "^1.27.0",
     "mime-types": "^3.0.1",
+    "node-notifier": "^10.0.1",
     "sharp": "^0.34.5",
     "zod": "^4.1.12"
   },
@@ -44,6 +45,7 @@
     "@eslint/js": "^10.0.1",
     "@types/mime-types": "^3.0.1",
     "@types/node": "^24.10.1",
+    "@types/node-notifier": "^8.0.5",
     "@vitest/coverage-v8": "^4.0.7",
     "esbuild": "^0.27.0",
     "eslint": "^10.0.2",

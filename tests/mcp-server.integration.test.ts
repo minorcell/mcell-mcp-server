@@ -3,6 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ContentBlogClient } from '../src/lib/content/client.js'
+import type { NotificationService } from '../src/lib/notify.js'
 import { createMcpServer } from '../src/index.js'
 import { createSamplePng, createTempDir, parseToolTextContent, removeTempDir } from './test-helpers.js'
 
@@ -15,6 +16,8 @@ describe('mcp server integration', () => {
   let searchBlogs: ReturnType<typeof vi.fn>
   let getBlogDocumentById: ReturnType<typeof vi.fn>
   let getBlogDocumentBySlug: ReturnType<typeof vi.fn>
+  let notifyTaskComplete: ReturnType<typeof vi.fn>
+  let notificationService: NotificationService
 
   let tempDir = ''
   let sourcePng = ''
@@ -78,11 +81,24 @@ describe('mcp server integration', () => {
       refreshIndex: vi.fn(async () => {})
     }
 
+    notifyTaskComplete = vi.fn(async () => ({
+      ok: true,
+      task_name: 'demo task',
+      status: 'success',
+      title: 'Task completed: demo task',
+      message: 'status=success',
+      total: 1,
+      succeeded: 1,
+      failed: 0,
+      results: [{ target: 'system', channel: 'system', ok: true }]
+    }))
+    notificationService = { notifyTaskComplete }
+
     client = new Client({
       name: 'mcell-mcp-test-client',
       version: '1.0.0'
     })
-    server = createMcpServer({ contentClient })
+    server = createMcpServer({ contentClient, notificationService })
 
     tempDir = await createTempDir('mcell-mcp-int-')
     sourcePng = path.join(tempDir, 'source.png')
@@ -110,7 +126,8 @@ describe('mcp server integration', () => {
         'content_latest',
         'content_list',
         'content_read',
-        'content_search'
+        'content_search',
+        'notify_task_complete'
       ])
     )
   })
@@ -195,5 +212,63 @@ describe('mcp server integration', () => {
     expect((result as { structuredContent?: { article?: { id?: string } } }).structuredContent?.article?.id).toBe(
       'blog:2026/by-id'
     )
+  })
+
+  it('can call notify_task_complete successfully', async () => {
+    const result = await client.callTool({
+      name: 'notify_task_complete',
+      arguments: {
+        task_name: 'long task',
+        status: 'success',
+        summary: 'done',
+        duration_sec: 42,
+        target: ['system']
+      }
+    })
+
+    expect(result.isError).toBeUndefined()
+    expect(notifyTaskComplete).toHaveBeenCalledWith({
+      task_name: 'long task',
+      status: 'success',
+      summary: 'done',
+      duration_sec: 42,
+      target: ['system']
+    })
+
+    const payload = parseToolTextContent(result) as { tool: string; ok: boolean; task_name: string }
+    expect(payload.tool).toBe('notify_task_complete')
+    expect(payload.ok).toBe(true)
+    expect(payload.task_name).toBe('demo task')
+  })
+
+  it('marks notify_task_complete as tool error when result is not ok', async () => {
+    notifyTaskComplete.mockResolvedValueOnce({
+      ok: false,
+      task_name: 'notify-fail',
+      status: 'failed',
+      title: 'Task failed: notify-fail',
+      message: 'status=failed',
+      total: 2,
+      succeeded: 1,
+      failed: 1,
+      results: [
+        { target: 'system', channel: 'system', ok: true },
+        { target: 'feishu', channel: 'webhook', ok: false, error: 'Webhook request failed (500).' }
+      ]
+    })
+
+    const result = await client.callTool({
+      name: 'notify_task_complete',
+      arguments: {
+        task_name: 'notify-fail',
+        target: ['system', 'feishu']
+      }
+    })
+
+    expect(result.isError).toBe(true)
+    const payload = parseToolTextContent(result) as { tool: string; ok: boolean; failed: number }
+    expect(payload.tool).toBe('notify_task_complete')
+    expect(payload.ok).toBe(false)
+    expect(payload.failed).toBe(1)
   })
 })
