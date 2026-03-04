@@ -40,4 +40,16 @@ describe('content config', () => {
   it('throws for invalid index url', () => {
     expect(() => loadContentConfig({ MCELL_CONTENT_INDEX_URL: 'not-a-url' })).toThrow('MCELL_CONTENT_INDEX_URL')
   })
+
+  it('throws for empty index url', () => {
+    expect(() => loadContentConfig({ MCELL_CONTENT_INDEX_URL: '   ' })).toThrow(
+      'MCELL_CONTENT_INDEX_URL cannot be empty'
+    )
+  })
+
+  it('throws for empty cache dir', () => {
+    expect(() => loadContentConfig({ MCELL_CONTENT_CACHE_DIR: '   ' })).toThrow(
+      'MCELL_CONTENT_CACHE_DIR cannot be empty'
+    )
+  })
 })

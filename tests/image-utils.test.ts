@@ -1,6 +1,14 @@
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
-import { FORMAT_TO_EXT, EXT_TO_FORMAT, buildOutputPath, inferFormatFromPath, toQuality } from '../src/lib/image.js'
+import type { Sharp } from 'sharp'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  FORMAT_TO_EXT,
+  EXT_TO_FORMAT,
+  applyFormat,
+  buildOutputPath,
+  inferFormatFromPath,
+  toQuality
+} from '../src/lib/image.js'
 
 describe('image format maps', () => {
   it('maps input extensions to formats', () => {
@@ -57,5 +65,32 @@ describe('toQuality', () => {
 
   it('rounds float values', () => {
     expect(toQuality(42.6, 80)).toBe(43)
+  })
+})
+
+describe('applyFormat', () => {
+  function createFakeSharp() {
+    const fake = {
+      jpeg: vi.fn().mockReturnThis(),
+      png: vi.fn().mockReturnThis(),
+      webp: vi.fn().mockReturnThis(),
+      avif: vi.fn().mockReturnThis(),
+      tiff: vi.fn().mockReturnThis(),
+      heif: vi.fn().mockReturnThis(),
+      gif: vi.fn().mockReturnThis()
+    }
+    return fake
+  }
+
+  it('routes to the right encoder for each format', () => {
+    const formats = ['jpeg', 'png', 'webp', 'avif', 'tiff', 'heif', 'gif'] as const
+
+    for (const format of formats) {
+      const fake = createFakeSharp()
+      const output = applyFormat(fake as unknown as Sharp, format, 77) as unknown
+
+      expect(output).toBe(fake)
+      expect(fake[format]).toHaveBeenCalledTimes(1)
+    }
   })
 })

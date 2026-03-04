@@ -36,3 +36,10 @@ jobs:
         with:
           name: coverage-node-22
           path: coverage
+
+      - name: Upload coverage to Codecov
+        if: matrix.node == 22
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/lcov.info
+          fail_ci_if_error: true

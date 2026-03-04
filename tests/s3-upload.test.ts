@@ -1,6 +1,6 @@
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { uploadToS3 } from '../src/lib/s3.js'
 import { createTempDir, removeTempDir } from './test-helpers.js'
@@ -156,5 +156,44 @@ describe('uploadToS3', () => {
         key: 'missing.txt'
       })
     ).rejects.toThrow()
+  })
+
+  it('uses default S3 client factory when createS3Client is omitted', async () => {
+    const sendSpy = vi.spyOn(S3Client.prototype, 'send').mockResolvedValue({
+      ETag: '"default-etag"'
+    })
+
+    const result = await uploadToS3({
+      file_path: filePath,
+      bucket: 'my-bucket',
+      key: 'default-client.txt'
+    })
+
+    expect(result.e_tag).toBe('"default-etag"')
+    expect(sendSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('omits ContentType when mime detection returns non-string', async () => {
+    const commands: PutObjectCommand[] = []
+    const fakeClient = {
+      send: vi.fn(async (command: PutObjectCommand) => {
+        commands.push(command)
+        return {}
+      })
+    }
+
+    await uploadToS3(
+      {
+        file_path: filePath,
+        bucket: 'my-bucket',
+        key: 'demo.unknown'
+      },
+      {
+        createS3Client: () => fakeClient,
+        lookupMimeType: () => false
+      }
+    )
+
+    expect(commands[0].input.ContentType).toBeUndefined()
   })
 })

@@ -148,6 +148,7 @@ function loadWebhookEndpoints(env: NodeJS.ProcessEnv): Map<string, string> {
   const endpoints = new Map<string, string>()
 
   for (const [key, value] of Object.entries(env)) {
+    if (key === WEBHOOK_TIMEOUT_ENV) continue
     if (!key.startsWith(WEBHOOK_ENV_PREFIX)) continue
     if (typeof value !== 'string') continue
 

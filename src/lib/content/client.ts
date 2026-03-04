@@ -94,10 +94,10 @@ function parseDatasetIndex(raw: unknown): DatasetIndex {
 }
 
 function parseDatasetDocument(raw: unknown): DatasetDocument {
-  const entry = parseDatasetEntry(raw)
   if (!isRecord(raw)) {
     throw new Error('Invalid dataset document payload')
   }
+  const entry = parseDatasetEntry(raw)
 
   const sourcePath = readRequiredString(raw, 'sourcePath')
   const contentRaw = raw.content

@@ -187,6 +187,34 @@ describe('mcp server integration', () => {
     })
   })
 
+  it('calls content_list successfully', async () => {
+    const result = await client.callTool({
+      name: 'content_list',
+      arguments: {
+        count: 1,
+        offset: 0
+      }
+    })
+
+    expect(result.isError).toBeUndefined()
+    expect(listBlogs).toHaveBeenCalledWith(1, 0)
+    expect((result as { structuredContent?: { total?: number } }).structuredContent?.total).toBe(1)
+  })
+
+  it('calls content_search successfully', async () => {
+    const result = await client.callTool({
+      name: 'content_search',
+      arguments: {
+        query: 'demo',
+        count: 1
+      }
+    })
+
+    expect(result.isError).toBeUndefined()
+    expect(searchBlogs).toHaveBeenCalledWith('demo', 1)
+    expect((result as { structuredContent?: { entries?: unknown[] } }).structuredContent?.entries).toHaveLength(1)
+  })
+
   it('returns validation error when content_read has no id and slug', async () => {
     const result = await client.callTool({
       name: 'content_read',
@@ -212,6 +240,123 @@ describe('mcp server integration', () => {
     expect((result as { structuredContent?: { article?: { id?: string } } }).structuredContent?.article?.id).toBe(
       'blog:2026/by-id'
     )
+  })
+
+  it('reads article by slug when only slug is provided', async () => {
+    const result = await client.callTool({
+      name: 'content_read',
+      arguments: {
+        slug: '2026/by-slug'
+      }
+    })
+
+    expect(result.isError).toBeUndefined()
+    expect(getBlogDocumentBySlug).toHaveBeenCalledWith('2026/by-slug')
+    expect((result as { structuredContent?: { article?: { id?: string } } }).structuredContent?.article?.id).toBe(
+      'blog:2026/by-slug'
+    )
+  })
+
+  it('returns tool error when content_latest fails', async () => {
+    listLatestBlogs.mockRejectedValueOnce(new Error('list latest failed'))
+
+    const result = await client.callTool({
+      name: 'content_latest',
+      arguments: {
+        count: 1
+      }
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('list latest failed')
+  })
+
+  it('returns tool error when content_list fails', async () => {
+    listBlogs.mockRejectedValueOnce(new Error('list failed'))
+
+    const result = await client.callTool({
+      name: 'content_list',
+      arguments: {
+        count: 1
+      }
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('list failed')
+  })
+
+  it('returns tool error when content_search fails', async () => {
+    searchBlogs.mockRejectedValueOnce(new Error('search failed'))
+
+    const result = await client.callTool({
+      name: 'content_search',
+      arguments: {
+        query: 'demo'
+      }
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('search failed')
+  })
+
+  it('returns tool error when content_read throws', async () => {
+    getBlogDocumentById.mockRejectedValueOnce(new Error('read failed'))
+
+    const result = await client.callTool({
+      name: 'content_read',
+      arguments: {
+        id: 'blog:2026/by-id'
+      }
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('read failed')
+  })
+
+  it('can call image_compress successfully', async () => {
+    const outputPath = path.join(tempDir, 'from-mcp-compressed.jpg')
+    const result = await client.callTool({
+      name: 'image_compress',
+      arguments: {
+        input_path: sourcePng,
+        output_path: outputPath,
+        quality: 70,
+        format: 'jpeg'
+      }
+    })
+
+    expect(result.isError).toBeUndefined()
+    const payload = parseToolTextContent(result) as { output_path: string; output_format: string; tool: string }
+    expect(payload.tool).toBe('image_compress')
+    expect(payload.output_path).toBe(outputPath)
+    expect(payload.output_format).toBe('jpeg')
+  })
+
+  it('returns tool error for missing source in image_compress', async () => {
+    const result = await client.callTool({
+      name: 'image_compress',
+      arguments: {
+        input_path: path.join(tempDir, 'missing-source.png'),
+        quality: 70
+      }
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('ENOENT')
+  })
+
+  it('returns tool error for s3_upload when source file is missing', async () => {
+    const result = await client.callTool({
+      name: 's3_upload',
+      arguments: {
+        file_path: path.join(tempDir, 'missing.txt'),
+        bucket: 'demo',
+        key: 'missing.txt'
+      }
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('ENOENT')
   })
 
   it('can call notify_task_complete successfully', async () => {
@@ -270,5 +415,19 @@ describe('mcp server integration', () => {
     expect(payload.tool).toBe('notify_task_complete')
     expect(payload.ok).toBe(false)
     expect(payload.failed).toBe(1)
+  })
+
+  it('returns tool error when notify_task_complete throws', async () => {
+    notifyTaskComplete.mockRejectedValueOnce(new Error('notify threw'))
+
+    const result = await client.callTool({
+      name: 'notify_task_complete',
+      arguments: {
+        task_name: 'throw-case'
+      }
+    })
+
+    expect(result.isError).toBe(true)
+    expect(result.content[0].text).toContain('notify threw')
   })
 })

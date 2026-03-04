@@ -1,4 +1,4 @@
-import { access } from 'node:fs/promises'
+import { access, copyFile } from 'node:fs/promises'
 import path from 'node:path'
 import sharp from 'sharp'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -29,6 +29,19 @@ describe('image operations', () => {
     expect(result.ok).toBe(true)
     expect(result.output_format).toBe('png')
     expect(result.output_path).toBe(path.join(tempDir, 'source.compressed.png'))
+    await expect(access(result.output_path)).resolves.toBeUndefined()
+  })
+
+  it('falls back to jpeg when format cannot be inferred', async () => {
+    const noExtSource = path.join(tempDir, 'source-no-ext')
+    await copyFile(sourcePng, noExtSource)
+
+    const result = await compressImage({
+      input_path: noExtSource
+    })
+
+    expect(result.output_format).toBe('jpeg')
+    expect(result.output_path).toBe(path.join(tempDir, 'source-no-ext.compressed.jpg'))
     await expect(access(result.output_path)).resolves.toBeUndefined()
   })
 
