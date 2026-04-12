@@ -1,141 +1,174 @@
-# Content Tools 功能实现梳理
+# Content Tools 功能实现思路（通用版）
 
-本文基于当前仓库代码，回答两个问题：
+> 这份文档聚焦“如何设计与实现 content 工具”，不是某个项目的逐行代码解读。
 
-1. `mcp server` 的 content 功能是如何实现的？
-2. content 的数据源从哪里来？
+## 1. 先定义目标：Content Tools 要解决什么问题
 
-## 1. 总体架构与调用链
+一个可用的 content 工具体系，通常要同时满足：
 
-入口在 `src/index.ts`：
+1. **统一访问**：对上层（MCP Tool / API）屏蔽底层数据源差异。
+2. **稳定可用**：远端波动时仍可服务（缓存与降级）。
+3. **可扩展**：后续新增数据源、内容类型、检索能力时不重写全链路。
+4. **可观测**：请求、命中率、超时、降级都能被追踪。
 
-- 服务启动时调用 `loadContentConfig()` 读取内容配置。
-- 使用配置创建 `new ContentDatasetClient(...)`。
-- `registerTools(...)` 时把 `contentClient` 注入到各个 content tool。
+因此实现上建议拆成三层：
 
-相关注册在 `src/tools/index.ts`，共四个内容工具：
+- **Tool 层**：参数校验、返回格式、错误包装。
+- **Domain/Service 层**：内容查询语义（latest/list/read/search）。
+- **Data 层**：索引拉取、文档拉取、缓存、容错。
 
-- `content_latest`
-- `content_list`
-- `content_read`
-- `content_search`
+---
 
-可以理解为：
+## 2. 推荐架构：接口先行，数据源可插拔
 
-`MCP Tool Handler (src/tools/content-*.ts)`
-→ `ContentBlogClient 接口`
-→ `ContentDatasetClient (src/lib/content/client.ts)`
-→ `远端 JSON + 本地缓存（内存/磁盘）`
+### 2.1 定义稳定接口（面向上层）
 
-## 2. 四个 content 工具如何实现
+先定义一个内容客户端接口，例如：
 
-### 2.1 `content_latest`
+- `listLatest(count)`
+- `list(count, offset)`
+- `readById(id)` / `readBySlug(slug)`
+- `search(query, count)`
+- `refreshIndex()`（可选）
 
-文件：`src/tools/content-latest.ts`
+上层工具只依赖接口，不依赖具体实现（HTTP、DB、本地文件）。
 
-- 入参：`count`（默认 1，最大 20）
-- 调用：`contentClient.listLatestBlogs(count)`
-- 输出：
-  - `structuredContent.entries`（结构化）
-  - `content[].text`（格式化文本）
+### 2.2 抽象数据模型（面向数据层）
 
-### 2.2 `content_list`
+建议拆成两类：
 
-文件：`src/tools/content-list.ts`
+- **Index/Entry（轻量）**：用于列表、排序、搜索初筛。
+- **Document（正文）**：用于全文读取。
 
-- 入参：`count`（默认 20）、`offset`（默认 0）
-- 调用：`contentClient.listBlogs(count, offset)`
-- 输出：分页列表与 `total`
+常见流程是“先查索引，再按 document 地址取正文”，这样可减少不必要的大对象读取。
 
-### 2.3 `content_read`
+---
 
-文件：`src/tools/content-read.ts`
+## 3. 数据源设计：远端优先 + 本地兜底
 
-- 入参：`id` / `slug`（二选一至少一个）、`max_chars`（默认 12000）
-- 调用：
-  - 有 `id` 时：`getBlogDocumentById(id)`
-  - 否则：`getBlogDocumentBySlug(slug)`
-- 文本输出会按 `max_chars` 截断，并在末尾追加 `[truncated]`（实现见 `src/lib/content/format.ts`）
+### 3.1 远端索引 + 文档
 
-### 2.4 `content_search`
+典型模式：
 
-文件：`src/tools/content-search.ts`
+1. 拉取 `index.json`（包含 entries）
+2. 根据 entry 的 `document` 字段再拉取单篇内容
 
-- 入参：`query`（必填）、`count`（默认 10，最大 30）
-- 调用：`contentClient.searchBlogs(query, count)`
-- 搜索打分规则（在 `src/lib/content/client.ts`）：
-  - title 命中 +3
-  - slug 命中 +2
-  - description 命中 +1
-  - 再按时间/排序字段做二级排序
+优点：
 
-## 3. 数据源从哪里来
+- 列表请求轻量
+- 正文按需获取
+- 可被 CDN 缓存
 
-核心在 `src/lib/content/config.ts` 与 `src/lib/content/client.ts`。
+### 3.2 缓存分层
 
-### 3.1 默认远端数据源
+建议至少两级缓存：
 
-默认索引地址：
+1. **内存缓存（进程级）**
+   - 命中快，适合高频读
+2. **磁盘缓存（跨请求/重启）**
+   - 远端失败时兜底
 
-- `https://stack.mcell.top/mcp/index.json`
+并统一 TTL 策略：
 
-可通过环境变量覆盖：
+- 过期后优先尝试远端刷新
+- 远端失败时可回退 stale cache（短 TTL 续命）
+- 缓存损坏要自动忽略并重拉
 
-- `MCELL_CONTENT_INDEX_URL`
+### 3.3 超时与失败策略
 
-`index.json` 里每条 entry 带有 `document` 字段（文档路径/URL），客户端会再请求对应文档 JSON。
+- 所有远端请求设置超时（AbortController）
+- 非 2xx 明确报错
+- “有缓存就降级，无缓存就失败”
+- 错误信息可定位到 URL / 资源 ID
 
-### 3.2 索引与文档数据结构
+---
 
-定义在 `src/lib/content/types.ts`：
+## 4. Tool 层实现要点
 
-- 索引：`DatasetIndex`
-  - `generatedAt`
-  - `entries[]`
-- 条目：`DatasetEntry`
-  - `id/type/slug/title/url/document/...`
-- 文档：`DatasetDocument`
-  - 在条目字段基础上增加 `sourcePath/metadata/content`
+### 4.1 参数与边界
 
-注意：业务上只处理 `type === 'blog'` 的条目。
+对每个工具明确：
 
-### 3.3 缓存与容错策略（远端优先，本地兜底）
+- 必填参数
+- 默认值
+- 上下限（如 `count`、`max_chars`）
+- 互斥/依赖关系（如 `id` 与 `slug` 至少一个）
 
-`ContentDatasetClient` 同时使用两级缓存：
+### 4.2 返回结构
 
-1. **内存缓存**
-   - 进程内保存 index/document
-   - 未过 TTL 时直接返回
+建议双通道返回：
 
-2. **磁盘缓存**（默认目录 `~/.cache/mcell-mcp/content`）
-   - `index.json`
-   - `documents/<id_sanitized>.json`
+- `structuredContent`：给程序消费
+- `text content`：给人类阅读
 
-TTL 相关环境变量：
+这样既便于 agent 自动处理，也便于调试和直读。
 
-- `MCELL_CONTENT_CACHE_DIR`
-- `MCELL_CONTENT_CACHE_TTL_SECONDS`（默认 1800 秒）
-- `MCELL_CONTENT_REQUEST_TIMEOUT_SECONDS`（默认 20 秒）
+### 4.3 统一错误出口
 
-容错逻辑：
+Tool handler 不直接抛杂乱异常，统一转换为标准错误结果，保证调用方行为稳定。
 
-- 远端请求成功：更新磁盘缓存 + 内存缓存。
-- 远端请求失败但本地有缓存：回退使用磁盘缓存（即便是 stale）。
-- 本地也没有可用缓存：抛错返回。
+---
 
-## 4. 排序与筛选规则
+## 5. 排序与搜索：先定规则再编码
 
-在 `compareEntries`（`src/lib/content/client.ts`）中：
+### 5.1 排序规则建议
 
-1. 优先按 `date` 倒序（新到旧）
-2. 没有可比较日期时，按 `order` 升序
-3. 都没有时，按 `title` 字典序
+稳定排序优先级可设为：
 
-并且列表/搜索前会先过滤 `type === 'blog'`。
+1. `date`（新到旧）
+2. `order`（业务显式顺序）
+3. `title/id`（最终兜底，避免不稳定）
 
-## 5. 结论（简版）
+### 5.2 搜索规则建议
 
-- content tools 是一层 MCP 工具封装，实际数据访问由 `ContentDatasetClient` 统一实现。
-- 数据源默认来自 `https://stack.mcell.top/mcp/index.json`，再按 `document` 字段拉取正文 JSON。
-- 实现采用“远端优先 + 本地缓存兜底 + 内存缓存加速”，保证可用性与响应速度。
-- 若要切换数据源，只需配置 `MCELL_CONTENT_INDEX_URL`（并可配套调整缓存目录、TTL、超时）。
+轻量场景可用“字段加权匹配”：
+
+- title 权重最高
+- slug 次之
+- description 最低
+
+同分时走统一排序函数，保证可预期结果。
+
+---
+
+## 6. 可配置项建议（12-factor）
+
+建议把以下能力放进环境变量：
+
+- 数据源索引 URL
+- 缓存目录
+- 缓存 TTL
+- 请求超时
+- （可选）User-Agent / 鉴权信息
+
+并在启动时做配置校验：
+
+- URL 合法
+- 数值为正整数
+- 路径非空
+
+让错误尽早暴露在启动阶段，而不是运行中随机触发。
+
+---
+
+## 7. 测试策略（实现思路验证）
+
+建议覆盖以下测试面：
+
+1. **配置解析测试**：默认值、非法值、边界值
+2. **客户端行为测试**：
+   - 远端成功写缓存
+   - 远端失败回退缓存
+   - 缓存损坏自动恢复
+3. **工具层测试**：参数校验、错误包装、输出结构
+4. **排序/搜索测试**：权重、同分、空结果
+
+核心原则：优先测“策略正确性”，而不是只测“某行代码被执行”。
+
+---
+
+## 8. 一句话总结
+
+Content Tools 的通用实现思路是：
+
+**以稳定接口隔离上层调用，以索引/正文分离降低读取成本，以双层缓存和降级机制保证可用性，以统一参数与输出约束保证工具可持续扩展。**
